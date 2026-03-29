@@ -30,10 +30,10 @@ jobs:
         run: snow --version
 
       - name: Print config.toml
-        run: cat config.toml
+        run: cat ~/.snowflake/config.toml
 
       - name: Verify connection
-        run: snow connection test
+        run: snow connection test 
 
       - name: Plan deployment
         run: snow dcm plan --target PLATFORM --connection myconnection
