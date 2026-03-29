@@ -16,16 +16,17 @@ Push to main
 │  1. Checkout repository                                 │
 │     └── actions/checkout@v4                             │
 │                                                         │
-│  2. Install Snowflake CLI                               │
-│     └── snowflakedb/snowflake-cli-action@v1.5           │
-│         cli-version: 3.9.0                              │
+│  2. Set up Conda environment                            │
+│     └── conda-incubator/setup-miniconda@v3              │
+│         environment: environment.yml (Snowflake channel)│
+│                                                         │
+│  3. Install Snowflake CLI                               │
+│     └── snowflakedb/snowflake-cli-action@v2.0           │
+│         cli-version: 3.16.0                             │
 │         config: config.toml → ~/.snowflake/config.toml  │
 │                                                         │
-│  3. snow --version                                      │
-│     └── Verify CLI installed correctly                  │
-│                                                         │
-│  4. cat ~/.snowflake/config.toml                        │
-│     └── Debug: print resolved config                    │
+│  4. Check versions                                      │
+│     └── snow --version, python --version, conda list    │
 │                                                         │
 │  5. snow connection test                                │
 │     └── Verify auth to Snowflake works                  │
@@ -36,11 +37,19 @@ Push to main
 │  7. snow dcm deploy --target PLATFORM                   │
 │     └── Apply DCM changes (roles, warehouses, grants)   │
 │                                                         │
-│  8. snow sql -f sources/users/platform/*.sql            │
-│  9. snow sql -f sources/users/deployers/*.sql           │
-│ 10. snow sql -f sources/users/developers/*.sql          │
-│ 11. snow sql -f sources/users/ops/*.sql                 │
-│     └── Create/update users + role-to-user grants       │
+│  8. snow sql -f users/platform/*.sql                    │
+│     └── Platform service accounts                       │
+│                                                         │
+│  9. python users/deployers/generate_deployer_sql.py     │
+│     └── Auto-generate + execute deployer SQL from       │
+│         manifest.yml (with enable/disable support)      │
+│                                                         │
+│ 10. snow sql -f users/developers/*.sql                  │
+│     └── Developer accounts (password from secret,       │
+│         with enable/disable per user)                   │
+│                                                         │
+│ 11. snow sql -f users/ops/*.sql                         │
+│     └── Ops accounts (with enable/disable per user)     │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -70,8 +79,9 @@ The `config.toml` defines the connection name (`myconnection`). Environment vari
 
 | Secret | Value |
 |--------|-------|
-| `SNOWFLAKE_ACCOUNT` | Snowflake account identifier (e.g. `WCCVLVP-OZC26701`) |
+| `SNOWFLAKE_ACCOUNT` | Snowflake account identifier |
 | `SNOWFLAKE_PLATFORM_DEPLOYER_PRIVATE_KEY` | Full PEM content of `auth-key-pairs/platform-deployer/rsa_key.p8` |
+| `DEFAULT_USER_PASSWORD` | Temporary password for new developer users (must change on first login) |
 
 ## Troubleshooting
 
@@ -79,5 +89,7 @@ The `config.toml` defines the connection name (`myconnection`). Environment vari
 |-------|-------|-----|
 | `Connection default is not configured` | Missing `config.toml` or wrong `default-config-file-path` | Ensure `config.toml` exists in repo root and action references it |
 | `JWT token is invalid` | Private key doesn't match public key on user | Re-copy key to GitHub secret, verify public key on Snowflake user |
-| `Unable to resolve action` | Wrong action name or version | Use `snowflakedb/snowflake-cli-action@v1.5` |
-| User SQL fails | Role/warehouse doesn't exist yet | Ensure DCM deploy runs before user SQL scripts |
+| `Unable to resolve action` | Wrong action name or version | Use `snowflakedb/snowflake-cli-action@v2.0` |
+| `Insufficient privileges to operate on user` | Trying to ALTER a user owned by ACCOUNTADMIN | Platform deployer is owned by ACCOUNTADMIN — can only be altered by ACCOUNTADMIN |
+| User SQL fails on role/warehouse | Role/warehouse doesn't exist yet | Ensure DCM deploy runs before user SQL scripts |
+| `ModuleNotFoundError: yaml` | Conda environment not activated | Ensure step uses `shell: bash -l {0}` |

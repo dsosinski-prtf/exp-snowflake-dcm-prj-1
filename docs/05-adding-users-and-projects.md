@@ -2,51 +2,49 @@
 
 ## Adding a New User
 
-Create a single `.sql` file in the appropriate category under `sources/users/`. Each category has a `.example.sql` template to copy from.
+### Deployer users (auto-generated)
 
-```
-sources/users/
-├── platform/        ← platform service accounts
-├── deployers/       ← feature project deployer service accounts
-├── developers/      ← human developer accounts
-└── ops/             ← operations/admin accounts
-```
+Deployer users are automatically created from the `projects` list in `manifest.yml`. No SQL files needed. Just add a project and push — the CI/CD pipeline generates and runs the SQL via `users/deployers/generate_deployer_sql.py`.
 
-### Example: Add a deployer
+To disable a deployer, set `deployer_enabled: false` in `manifest.yml`:
 
-Copy `sources/users/deployers/.example.sql` to `sources/users/deployers/<project>_<env>_deployer.sql`:
-
-```sql
-USE ROLE PLATFORM_DEPLOY_ROLE;
-
-CREATE USER IF NOT EXISTS ANALYTICS_DEV_DEPLOYER
-    DEFAULT_ROLE      = 'ANALYTICS_DEV_DEPLOY_ROLE'
-    DEFAULT_WAREHOUSE = 'ANALYTICS_DEV_DEPLOY_WH'
-    TYPE = SERVICE
-    COMMENT = 'Service account for ANALYTICS DEV deployments';
-
-GRANT ROLE ANALYTICS_DEV_DEPLOY_ROLE TO USER ANALYTICS_DEV_DEPLOYER;
+```yaml
+projects:
+  FITNESS:
+    environments:
+      DEV:
+        warehouse_size: XSMALL
+        deployer_enabled: false    # disables FITNESS_DEV_DEPLOYER
 ```
 
-### Example: Add a developer
+### Developer users (one SQL file per user)
 
-Copy `sources/users/developers/.example.sql` to `sources/users/developers/<username>.sql`:
+Create a `.sql` file in `users/developers/`. Use `users/developers/.example.sql` as a template.
+
+Example — `users/developers/jsmith.sql`:
 
 ```sql
 USE ROLE PLATFORM_DEPLOY_ROLE;
 
 CREATE USER IF NOT EXISTS JSMITH
-    DEFAULT_ROLE      = 'ANALYTICS_DEV_DEPLOY_ROLE'
-    DEFAULT_WAREHOUSE = 'ANALYTICS_DEV_DEPLOY_WH'
-    TYPE = PERSON
-    COMMENT = 'Developer - John Smith';
+    DEFAULT_ROLE           = 'DEVELOPER_ROLE'
+    TYPE                   = PERSON
+    MUST_CHANGE_PASSWORD   = TRUE
+    PASSWORD               = '__DEFAULT_USER_PASSWORD__'
+    COMMENT                = 'Developer - John Smith';
 
-GRANT ROLE ANALYTICS_DEV_DEPLOY_ROLE TO USER JSMITH;
+GRANT ROLE DEVELOPER_ROLE TO USER JSMITH;
+
+ALTER USER JSMITH SET DISABLED = FALSE;  -- set TRUE to disable
 ```
 
-### Example: Add an ops user
+The `__DEFAULT_USER_PASSWORD__` placeholder is replaced at deploy time with the `DEFAULT_USER_PASSWORD` GitHub secret. The user must change this password on first login.
 
-Copy `sources/users/ops/.example.sql` to `sources/users/ops/<username>.sql`:
+### Ops users (one SQL file per user)
+
+Create a `.sql` file in `users/ops/`. Use `users/ops/.example.sql` as a template.
+
+Example — `users/ops/monitoring_bot.sql`:
 
 ```sql
 USE ROLE PLATFORM_DEPLOY_ROLE;
@@ -58,11 +56,13 @@ CREATE USER IF NOT EXISTS MONITORING_BOT
     COMMENT = 'Ops - monitoring service account';
 
 GRANT ROLE PLATFORM_DEPLOY_ROLE TO USER MONITORING_BOT;
+
+ALTER USER MONITORING_BOT SET DISABLED = FALSE;  -- set TRUE to disable
 ```
 
 ### After pushing
 
-Push to `main` — the CI/CD pipeline creates the user automatically.
+Push to `main` — the CI/CD pipeline creates/updates the user automatically.
 
 For service accounts, manually assign a key pair:
 
@@ -70,19 +70,28 @@ For service accounts, manually assign a key pair:
 ALTER USER <username> SET RSA_PUBLIC_KEY='<public key content>';
 ```
 
+### Disabling a user
+
+- **Deployers:** set `deployer_enabled: false` in `manifest.yml`
+- **Developers/Ops:** change `DISABLED = FALSE` to `DISABLED = TRUE` in their SQL file
+- **Platform deployer:** must be done by ACCOUNTADMIN directly (owned by ACCOUNTADMIN)
+
 ## Onboarding a New Feature Project
 
-### 1. Set project name in manifest.yml
+### 1. Add project to manifest.yml
 
 ```yaml
 templating:
   defaults:
-    project_name: ANALYTICS          # ← your project name
-    environments:
-      DEV:
-        warehouse_size: XSMALL
-      PROD:
-        warehouse_size: SMALL
+    projects:
+      FITNESS:
+        environments:
+          DEV: { warehouse_size: XSMALL }
+          PROD: { warehouse_size: SMALL }
+      ANALYTICS:                           # ← new project
+        environments:
+          DEV: { warehouse_size: XSMALL }
+          PROD: { warehouse_size: MEDIUM }
 ```
 
 ### 2. Add DCM project objects to bootstrap
@@ -98,25 +107,15 @@ CREATE DCM PROJECT IF NOT EXISTS ANALYTICS_DCM.PROJECTS.ANALYTICS_PROJECT_PROD;
 
 Run it: `snow sql -f bootstrap/01_pre_deploy.sql --connection platform-deployer`
 
-### 3. Run DCM deploy
+### 3. Push to main
 
-```bash
-snow dcm plan --target PLATFORM --connection platform-deployer
-snow dcm deploy --target PLATFORM --connection platform-deployer
-```
+CI/CD automatically creates:
+- Roles: `ANALYTICS_DEV_DEPLOY_ROLE`, `ANALYTICS_PROD_DEPLOY_ROLE`
+- Warehouses: `ANALYTICS_DEV_DEPLOY_WH`, `ANALYTICS_PROD_DEPLOY_WH`
+- Grants: role hierarchy, warehouse usage, DCM access, account privileges
+- Deployer users: `ANALYTICS_DEV_DEPLOYER`, `ANALYTICS_PROD_DEPLOYER`
 
-This creates: roles, warehouses, grants, DCM database/schema for all environments.
-
-### 4. Add deployer users
-
-Create files in `sources/users/deployers/`:
-
-- `analytics_dev_deployer.sql`
-- `analytics_prod_deployer.sql`
-
-Use `.example.sql` as a template.
-
-### 5. Transfer DCM project ownership
+### 4. Transfer DCM project ownership
 
 Add a block to `bootstrap/02_post_deploy.sql`:
 
@@ -129,7 +128,7 @@ GRANT OWNERSHIP ON DCM PROJECT ANALYTICS_DCM.PROJECTS.ANALYTICS_PROJECT_PROD
 
 Run it: `snow sql -f bootstrap/02_post_deploy.sql --connection platform-deployer`
 
-### 6. Set up authentication
+### 5. Set up authentication
 
 Generate key pairs, assign public keys, store private keys as GitHub Secrets in the feature repo.
 
@@ -138,9 +137,8 @@ Generate key pairs, assign public keys, store private keys as GitHub Secrets in 
 ### 1. Update manifest.yml
 
 ```yaml
-templating:
-  defaults:
-    project_name: <PROJECT>
+projects:
+  FITNESS:
     environments:
       DEV:
         warehouse_size: XSMALL
@@ -152,17 +150,17 @@ templating:
 
 ### 2. Push to main
 
-All Jinja2 templates automatically pick up the new environment. DCM deploy creates:
+All Jinja2 templates and the deployer script automatically pick up the new environment. Creates:
 
 ```
-<PROJECT>_STAGING_DEPLOY_ROLE
-<PROJECT>_STAGING_DEPLOY_WH (XSMALL)
+FITNESS_STAGING_DEPLOY_ROLE
+FITNESS_STAGING_DEPLOY_WH (XSMALL)
+FITNESS_STAGING_DEPLOYER
 + all grants
 ```
 
 ### 3. Manual follow-up
 
-- Add DCM project: `<PROJECT>_DCM.PROJECTS.<PROJECT>_PROJECT_STAGING` to `bootstrap/01_pre_deploy.sql`
-- Add deployer user: `sources/users/deployers/<project>_staging_deployer.sql`
+- Add DCM project: `FITNESS_DCM.PROJECTS.FITNESS_PROJECT_STAGING` to `bootstrap/01_pre_deploy.sql`
 - Transfer DCM project ownership in `bootstrap/02_post_deploy.sql`
 - Generate key pair + store as GitHub Secret

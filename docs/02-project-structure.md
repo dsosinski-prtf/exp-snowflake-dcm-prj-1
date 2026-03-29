@@ -3,7 +3,7 @@
 ```
 exp-snowflake-dcm-prj-1/
 │
-├── manifest.yml                          ← DCM config: targets, templating vars
+├── manifest.yml                          ← DCM config: targets, projects list
 │
 ├── bootstrap/                            ← One-time manual scripts (ACCOUNTADMIN)
 │   ├── 00_platform_user.sql              │  Role + privileges + warehouse
@@ -13,22 +13,25 @@ exp-snowflake-dcm-prj-1/
 ├── sources/
 │   ├── definitions/                      ← DCM DEFINE directives (Jinja2 templated)
 │   │   ├── dcm_projects.sql              │  <PROJECT>_DCM databases + schemas
-│   │   ├── deploy_roles.sql              │  Per-environment deploy roles
-│   │   ├── deploy_warehouses.sql         │  Per-environment warehouses
+│   │   ├── deploy_roles.sql              │  Per-project/env deploy roles
+│   │   ├── deploy_warehouses.sql         │  Per-project/env warehouses
+│   │   ├── developer_roles.sql           │  DEVELOPER_ROLE under SYSADMIN
 │   │   └── grants.sql                    │  All permissions + role hierarchy
-│   │
-│   ├── users/                            ← User SQL scripts (one file per user)
-│   │   ├── platform/                     │  Platform service accounts
-│   │   │   └── platform_deployer.sql     │
-│   │   ├── deployers/                    │  Per-project deployer service accounts
-│   │   │   └── .example.sql              │  Template for new deployers
-│   │   ├── developers/                   │  Human developer accounts
-│   │   │   └── .example.sql              │  Template for new developers
-│   │   └── ops/                          │  Operations accounts
-│   │       └── .example.sql              │  Template for new ops users
-│   │
-│   └── macros/                           ← Jinja2 macros (empty)
+│   └── macros/                           ← Jinja2 macros
 │
+├── users/                                ← User management (outside sources/)
+│   ├── platform/                         │  Platform service accounts
+│   │   └── platform_deployer.sql         │
+│   ├── deployers/                        │  Auto-generated from manifest.yml
+│   │   ├── generate_deployer_sql.py      │  Script to generate deployer SQL
+│   │   └── .example.sql                  │  Template reference
+│   ├── developers/                       │  Human developer accounts
+│   │   ├── dsosinski_developer.sql       │
+│   │   └── .example.sql                  │  Template reference
+│   └── ops/                              │  Operations accounts
+│       └── .example.sql                  │  Template reference
+│
+├── environment.yml                       ← Conda environment (Snowflake channel)
 ├── config.toml                           ← CI/CD connection template
 ├── auth-key-pairs/                       ← RSA key pairs (gitignored)
 │
@@ -41,28 +44,38 @@ exp-snowflake-dcm-prj-1/
 ## What lives where
 
 ```
-┌─────────────────────┬─────────────────────────────┬──────────────────┐
-│     Directory        │  What it manages             │  How it runs     │
-├─────────────────────┼─────────────────────────────┼──────────────────┤
-│ bootstrap/           │  Account-level setup         │  Manual (once)   │
-│                      │  DCM project objects          │  snow sql -f     │
-│                      │  Ownership transfers          │                  │
-├─────────────────────┼─────────────────────────────┼──────────────────┤
-│ sources/definitions/ │  Roles, warehouses, grants   │  CI/CD (DCM)     │
-│                      │  DCM databases/schemas        │  snow dcm deploy │
-├─────────────────────┼─────────────────────────────┼──────────────────┤
-│ sources/users/       │  All Snowflake users          │  CI/CD (SQL)     │
-│                      │  Role-to-user grants          │  snow sql -f     │
-├─────────────────────┼─────────────────────────────┼──────────────────┤
-│ auth-key-pairs/      │  RSA keys (gitignored)       │  Manual setup    │
-└─────────────────────┴─────────────────────────────┴──────────────────┘
+┌─────────────────────┬──────────────────────────────┬──────────────────┐
+│     Directory        │  What it manages              │  How it runs     │
+├─────────────────────┼──────────────────────────────┼──────────────────┤
+│ bootstrap/           │  Account-level setup          │  Manual (once)   │
+│                      │  DCM project objects           │  snow sql -f     │
+│                      │  Ownership transfers           │                  │
+├─────────────────────┼──────────────────────────────┼──────────────────┤
+│ sources/definitions/ │  Roles, warehouses, grants    │  CI/CD (DCM)     │
+│                      │  DCM databases/schemas         │  snow dcm deploy │
+│                      │  Developer roles               │                  │
+├─────────────────────┼──────────────────────────────┼──────────────────┤
+│ users/platform/      │  Platform service accounts    │  CI/CD (SQL)     │
+│                      │                                │  snow sql -f     │
+├─────────────────────┼──────────────────────────────┼──────────────────┤
+│ users/deployers/     │  Deployer service accounts    │  CI/CD (Python)  │
+│                      │  (auto-generated from          │  generate_       │
+│                      │   manifest.yml)                │  deployer_sql.py │
+├─────────────────────┼──────────────────────────────┼──────────────────┤
+│ users/developers/    │  Human developer accounts     │  CI/CD (SQL)     │
+│ users/ops/           │  Operations accounts           │  snow sql -f     │
+├─────────────────────┼──────────────────────────────┼──────────────────┤
+│ auth-key-pairs/      │  RSA keys (gitignored)        │  Manual setup    │
+└─────────────────────┴──────────────────────────────┴──────────────────┘
 ```
+
+Note: `users/` lives outside `sources/` so DCM does not upload user scripts during `snow dcm deploy`.
 
 ## Key configuration files
 
 ### manifest.yml
 
-Controls DCM targets and Jinja2 template variables. Set `project_name` to the feature project being onboarded:
+Controls DCM targets and the list of feature projects. All `sources/definitions/` templates and `users/deployers/generate_deployer_sql.py` read from this file:
 
 ```yaml
 manifest_version: 2
@@ -76,12 +89,28 @@ targets:
 
 templating:
   defaults:
-    project_name: <PROJECT>          # ← set per feature project
-    environments:                    # ← loop target for Jinja2
-      DEV:
-        warehouse_size: XSMALL
-      PROD:
-        warehouse_size: SMALL
+    projects:
+      FITNESS:
+        environments:
+          DEV:
+            warehouse_size: XSMALL
+          PROD:
+            warehouse_size: SMALL
+            deployer_enabled: true     # set false to disable deployer
+```
+
+### environment.yml
+
+Conda environment using the Snowflake channel:
+
+```yaml
+name: snowflake
+channels:
+  - https://repo.anaconda.com/pkgs/snowflake
+  - nodefaults
+dependencies:
+  - python=3.11
+  - pyyaml
 ```
 
 ### config.toml
