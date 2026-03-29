@@ -11,6 +11,7 @@ Platform administration repo that manages deployment infrastructure for all Snow
 - **Grants** wiring deployers to their projects + role hierarchy to SYSADMIN
 
 ### Via bootstrap scripts (manual, one-time)
+- **Platform admin user + role** (`PLATFORM_DEPLOYER` / `PLATFORM_DEPLOY_ROLE`) — runs all DCM operations instead of ACCOUNTADMIN
 - **DCM project objects** — not a supported DEFINE type
 - **Deployer users** — USER is not a supported DEFINE type
 - **Role-to-user grants and DCM project ownership**
@@ -18,10 +19,16 @@ Platform administration repo that manages deployment infrastructure for all Snow
 ## Project structure
 
 ```
+├── auth-key-pairs/                      <- RSA key pairs per user (gitignored)
+│   ├── accountadmin/
+│   ├── platform-deployer/
+│   ├── dev-deployer/
+│   └── prod-deployer/
 ├── bootstrap/
-│   ├── 01_pre_deploy.sql                <- run once before first DCM deploy
-│   └── 02_post_deploy.sql               <- run once after first DCM deploy
-├── manifest.yml                         <- platform DCM config
+│   ├── 00_platform_user.sql             <- run once as ACCOUNTADMIN to create platform user
+│   ├── 01_pre_deploy.sql                <- run once before first DCM deploy (as PLATFORM_DEPLOYER)
+│   └── 02_post_deploy.sql               <- run once after first DCM deploy (as PLATFORM_DEPLOYER)
+├── manifest.yml                         <- platform DCM config (owner: PLATFORM_DEPLOY_ROLE)
 ├── sources/definitions/
 │   ├── dcm_projects.sql                 <- feature repo DCM databases/schemas
 │   ├── deploy_roles.sql                 <- deployer roles
@@ -34,14 +41,55 @@ Platform administration repo that manages deployment infrastructure for all Snow
 
 ### Prerequisites
 - Snowflake CLI installed (`snow --version`)
-- Connection configured in `~/.snowflake/connections.toml` with ACCOUNTADMIN role
+- Connection configured in `~/.snowflake/connections.toml` with ACCOUNTADMIN role (only needed for Step 0)
+
+### Step 0: Create platform user (run as ACCOUNTADMIN)
+
+Creates a dedicated `PLATFORM_DEPLOYER` user and `PLATFORM_DEPLOY_ROLE` so that ACCOUNTADMIN is not used for day-to-day operations. This is the only step that requires ACCOUNTADMIN.
+
+```bash
+snow sql -f bootstrap/00_platform_user.sql --connection <accountadmin-connection>
+```
+
+This creates:
+- `PLATFORM_DEPLOY_ROLE` with account-level privileges (CREATE DATABASE/WAREHOUSE/ROLE/USER, MANAGE GRANTS — all WITH GRANT OPTION)
+- `PLATFORM_DEPLOYER` service account (key-pair auth only, no password)
+- `PLATFORM_DEPLOY_WH` (XSMALL) warehouse for platform deployments
+- Role hierarchy: `PLATFORM_DEPLOY_ROLE` -> `ACCOUNTADMIN`
+
+Then generate a key pair and assign it:
+
+```bash
+cd auth-key-pairs/platform-deployer
+openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
+openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
+```
+
+```sql
+-- Run as ACCOUNTADMIN
+ALTER USER PLATFORM_DEPLOYER SET RSA_PUBLIC_KEY='<contents of rsa_key.pub>';
+```
+
+Configure a Snowflake CLI connection for the platform user in `~/.snowflake/connections.toml`:
+
+```toml
+[platform]
+account = "WCCVLVP-OZC26701"
+user = "PLATFORM_DEPLOYER"
+role = "PLATFORM_DEPLOY_ROLE"
+warehouse = "PLATFORM_DEPLOY_WH"
+authenticator = "SNOWFLAKE_JWT"
+private_key_file = "/path/to/auth-key-pairs/platform-deployer/rsa_key.p8"
+```
+
+All subsequent steps use `--connection platform` instead of ACCOUNTADMIN.
 
 ### Step 1: Run pre-deploy bootstrap
 
 Creates DCM project objects that cannot be managed by DCM itself.
 
 ```bash
-snow sql -f bootstrap/01_pre_deploy.sql --connection <your-connection>
+snow sql -f bootstrap/01_pre_deploy.sql --connection platform
 ```
 
 This creates:
@@ -52,8 +100,8 @@ This creates:
 ### Step 2: Plan and deploy platform infrastructure
 
 ```bash
-snow dcm plan --target PLATFORM --connection <your-connection>
-snow dcm deploy --target PLATFORM --connection <your-connection>
+snow dcm plan --target PLATFORM --connection platform
+snow dcm deploy --target PLATFORM --connection platform
 ```
 
 This creates:
@@ -66,7 +114,7 @@ This creates:
 Creates deployer users and assigns ownership. These reference roles and warehouses created in step 2.
 
 ```bash
-snow sql -f bootstrap/02_post_deploy.sql --connection <your-connection>
+snow sql -f bootstrap/02_post_deploy.sql --connection platform
 ```
 
 This creates:
@@ -79,32 +127,47 @@ This creates:
 Generate key pairs for each deployer user and store private keys as GitHub Secrets in the feature repo.
 
 ```bash
-openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out dev_deployer_key.p8 -nocrypt
-openssl rsa -in dev_deployer_key.p8 -pubout -out dev_deployer_key.pub
+cd auth-key-pairs/dev-deployer
+openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
+openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
 
-openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out prod_deployer_key.p8 -nocrypt
-openssl rsa -in prod_deployer_key.p8 -pubout -out prod_deployer_key.pub
+cd auth-key-pairs/prod-deployer
+openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
+openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
 ```
 
 Then assign public keys to users:
 
 ```sql
-ALTER USER FITNESS_DEV_DEPLOYER SET RSA_PUBLIC_KEY='<contents of dev_deployer_key.pub>';
-ALTER USER FITNESS_PROD_DEPLOYER SET RSA_PUBLIC_KEY='<contents of prod_deployer_key.pub>';
+ALTER USER FITNESS_DEV_DEPLOYER SET RSA_PUBLIC_KEY='<contents of dev-deployer/rsa_key.pub>';
+ALTER USER FITNESS_PROD_DEPLOYER SET RSA_PUBLIC_KEY='<contents of prod-deployer/rsa_key.pub>';
 ```
 
 Add private keys as GitHub Secrets (`SNOWFLAKE_DEV_PRIVATE_KEY`, `SNOWFLAKE_PROD_PRIVATE_KEY`) in the feature repo.
 
+## Authentication
+
+All users authenticate via RSA key pairs (no passwords). Key pairs are stored in `auth-key-pairs/` (gitignored).
+
+| User | Role | Type | Auth |
+|------|------|------|------|
+| `DSOSINSKI` | `ACCOUNTADMIN` | PERSON | Key pair |
+| `PLATFORM_DEPLOYER` | `PLATFORM_DEPLOY_ROLE` | SERVICE | Key pair |
+| `FITNESS_DEV_DEPLOYER` | `FITNESS_DEV_DEPLOY_ROLE` | SERVICE | Key pair |
+| `FITNESS_PROD_DEPLOYER` | `FITNESS_PROD_DEPLOY_ROLE` | SERVICE | Key pair |
+
+Service accounts (`TYPE = SERVICE`) cannot use password authentication by design.
+
 ## Ongoing changes
 
-After initial setup, all infrastructure changes go through the standard DCM workflow:
+After initial setup, all infrastructure changes go through the standard DCM workflow using the platform deployer:
 
 ```bash
 # Preview changes
-snow dcm plan --target PLATFORM --connection <your-connection>
+snow dcm plan --target PLATFORM --connection platform
 
 # Apply changes
-snow dcm deploy --target PLATFORM --connection <your-connection>
+snow dcm deploy --target PLATFORM --connection platform
 ```
 
 ## Adding a new feature project

@@ -5,7 +5,7 @@ targets:
   PLATFORM:
     account_identifier: "WCCVLVP-OZC26701"
     project_name: "PLATFORM_DCM.PROJECTS.PLATFORM_PROJECT"
-    project_owner: "ACCOUNTADMIN"
+    project_owner: "PLATFORM_DEPLOY_ROLE"
 
 default_target: PLATFORM
 

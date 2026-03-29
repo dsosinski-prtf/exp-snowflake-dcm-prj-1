@@ -1,0 +1,46 @@
+-- ============================================================
+-- PLATFORM USER — Run ONCE as ACCOUNTADMIN
+-- Creates a dedicated role + user for managing this repo's
+-- objects so ACCOUNTADMIN is not used for day-to-day operations.
+-- ============================================================
+
+USE ROLE ACCOUNTADMIN;
+
+-- ---- Role ----
+CREATE ROLE IF NOT EXISTS PLATFORM_DEPLOY_ROLE
+    COMMENT = 'Manages all platform-admin DCM objects (databases, warehouses, roles, users, grants)';
+
+-- Role hierarchy: PLATFORM_DEPLOY_ROLE -> ACCOUNTADMIN
+GRANT ROLE PLATFORM_DEPLOY_ROLE TO ROLE ACCOUNTADMIN;
+
+-- ---- Account-level privileges ----
+-- WITH GRANT OPTION so DCM can delegate these to deploy roles
+GRANT CREATE DATABASE  ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE WITH GRANT OPTION;
+GRANT CREATE WAREHOUSE ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE WITH GRANT OPTION;
+GRANT CREATE ROLE      ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE WITH GRANT OPTION;
+GRANT CREATE USER      ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE WITH GRANT OPTION;
+GRANT MANAGE GRANTS    ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE;
+
+-- ---- User ----
+CREATE USER IF NOT EXISTS PLATFORM_DEPLOYER
+    DEFAULT_ROLE      = 'PLATFORM_DEPLOY_ROLE'
+    DEFAULT_WAREHOUSE = 'PLATFORM_DEPLOY_WH'
+    TYPE = SERVICE
+    COMMENT = 'Service account for platform-admin repo DCM deployments';
+--  RSA_PUBLIC_KEY = '<paste contents of auth-key-pairs/platform-deployer/rsa_key.pub>';
+
+GRANT ROLE PLATFORM_DEPLOY_ROLE TO USER PLATFORM_DEPLOYER;
+
+-- ---- Warehouse for platform deploys ----
+CREATE WAREHOUSE IF NOT EXISTS PLATFORM_DEPLOY_WH
+    WAREHOUSE_SIZE    = 'XSMALL'
+    AUTO_SUSPEND      = 60
+    AUTO_RESUME       = TRUE
+    INITIALLY_SUSPENDED = TRUE;
+
+GRANT USAGE ON WAREHOUSE PLATFORM_DEPLOY_WH TO ROLE PLATFORM_DEPLOY_ROLE;
+
+-- ---- Ownership of platform DCM database ----
+-- (Run after 01_pre_deploy.sql creates PLATFORM_DCM)
+-- GRANT OWNERSHIP ON DATABASE PLATFORM_DCM TO ROLE PLATFORM_DEPLOY_ROLE COPY CURRENT GRANTS;
+-- GRANT OWNERSHIP ON ALL SCHEMAS IN DATABASE PLATFORM_DCM TO ROLE PLATFORM_DEPLOY_ROLE COPY CURRENT GRANTS;

@@ -1,7 +1,9 @@
 -- ============================================================
--- PRE-DEPLOY — Run as ACCOUNTADMIN before first DCM deploy
+-- PRE-DEPLOY — Run as PLATFORM_DEPLOY_ROLE before first DCM deploy
 -- Creates objects that DCM cannot manage itself
 -- ============================================================
+
+USE ROLE PLATFORM_DEPLOY_ROLE;
 
 -- Platform DCM project home
 CREATE DATABASE IF NOT EXISTS PLATFORM_DCM;

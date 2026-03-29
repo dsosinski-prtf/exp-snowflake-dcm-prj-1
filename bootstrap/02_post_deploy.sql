@@ -1,8 +1,10 @@
 -- ============================================================
--- POST-DEPLOY — Run as ACCOUNTADMIN after first DCM deploy
+-- POST-DEPLOY — Run as PLATFORM_DEPLOY_ROLE after first DCM deploy
 -- Creates users and grants that reference DCM-managed objects
 -- (roles, warehouses must exist before this runs)
 -- ============================================================
+
+USE ROLE PLATFORM_DEPLOY_ROLE;
 
 -- Deployer service accounts (USER is not a DCM-supported object type)
 -- Replace RSA_PUBLIC_KEY with actual keys for GitHub Actions auth
