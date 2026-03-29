@@ -23,9 +23,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Snowflake CLI
-        uses: snowflakedb/snowflake-cli-action@v2.0
+      - uses: snowflakedb/snowflake-cli-action@v1.5
         with:
+          cli-version: "3.9.0"
           default-config-file-path: "config.toml"
 
       - name: Check Snowflake CLI version
