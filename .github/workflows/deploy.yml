@@ -1,0 +1,33 @@
+name: Deploy Snowflake DCM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: "PLATFORM_DEPLOYER"
+      SNOWFLAKE_ROLE: "PLATFORM_DEPLOY_ROLE"
+      SNOWFLAKE_WAREHOUSE: "PLATFORM_DEPLOY_WH"
+      SNOWFLAKE_PRIVATE_KEY_RAW: ${{ secrets.SNOWFLAKE_PLATFORM_DEPLOYER_PRIVATE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Snowflake CLI
+        uses: Snowflake-Labs/snowflake-cli-action@v1
+
+      - name: Verify connection
+        run: snow connection test
+
+      - name: Plan deployment
+        run: snow dcm plan --target PLATFORM
+
+      - name: Deploy
+        run: snow dcm deploy --target PLATFORM
