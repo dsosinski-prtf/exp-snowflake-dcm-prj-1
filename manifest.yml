@@ -1,0 +1,19 @@
+manifest_version: 2
+type: DCM_PROJECT
+
+targets:
+  PLATFORM:
+    account_identifier: "WCCVLVP-OZC26701"
+    project_name: "PLATFORM_DCM.PROJECTS.PLATFORM_PROJECT"
+    project_owner: "ACCOUNTADMIN"
+
+default_target: PLATFORM
+
+templating:
+  defaults:
+    project_name: FITNESS
+    environments:
+      DEV:
+        warehouse_size: XSMALL
+      PROD:
+        warehouse_size: SMALL
