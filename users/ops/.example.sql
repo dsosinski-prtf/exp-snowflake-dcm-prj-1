@@ -11,3 +11,5 @@
 --     COMMENT = 'Ops - <description>';
 --
 -- GRANT ROLE <ROLE> TO USER <USERNAME>;
+--
+-- ALTER USER <USERNAME> SET DISABLED = FALSE;  -- set TRUE to disable

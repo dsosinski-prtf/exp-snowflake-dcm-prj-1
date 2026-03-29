@@ -11,3 +11,5 @@
 --     COMMENT = 'Developer - <Full Name>';
 --
 -- GRANT ROLE <PROJECT>_<ENV>_DEPLOY_ROLE TO USER <USERNAME>;
+--
+-- ALTER USER <USERNAME> SET DISABLED = FALSE;  -- set TRUE to disable

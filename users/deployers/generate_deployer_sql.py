@@ -17,6 +17,9 @@ def generate_deployer_sql(manifest_path: str) -> str:
             role = f"{project_name}_{env}_DEPLOY_ROLE"
             wh = f"{project_name}_{env}_DEPLOY_WH"
 
+            enabled = project.get("environments", {}).get(env, {}).get("deployer_enabled", True)
+            disabled = "FALSE" if enabled else "TRUE"
+
             statements.append(f"""
 CREATE USER IF NOT EXISTS {user}
     DEFAULT_ROLE      = '{role}'
@@ -24,7 +27,9 @@ CREATE USER IF NOT EXISTS {user}
     TYPE = SERVICE
     COMMENT = 'Service account for {project_name} {env} deployments';
 
-GRANT ROLE {role} TO USER {user};""")
+GRANT ROLE {role} TO USER {user};
+
+ALTER USER {user} SET DISABLED = {disabled};""")
 
     return "USE ROLE PLATFORM_DEPLOY_ROLE;\n" + "\n".join(statements)
 

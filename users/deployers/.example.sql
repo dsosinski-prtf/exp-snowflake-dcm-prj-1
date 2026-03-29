@@ -11,3 +11,5 @@
 --     COMMENT = 'Service account for <PROJECT> <ENV> deployments';
 --
 -- GRANT ROLE <PROJECT>_<ENV>_DEPLOY_ROLE TO USER <PROJECT>_<ENV>_DEPLOYER;
+--
+-- ALTER USER <PROJECT>_<ENV>_DEPLOYER SET DISABLED = FALSE;  -- set TRUE to disable
