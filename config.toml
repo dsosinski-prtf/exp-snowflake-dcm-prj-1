@@ -1,3 +1,5 @@
 default_connection_name = "platform"
 
+[connections]
 [connections.platform]
+user = ""

@@ -28,6 +28,9 @@ jobs:
         with:
           default-config-file-path: "config.toml"
 
+      - name: Check Snowflake CLI version
+        run: snow --version
+
       - name: Verify connection
         run: snow connection test
 
