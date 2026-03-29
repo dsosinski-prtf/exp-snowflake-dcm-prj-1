@@ -9,11 +9,20 @@ targets:
 
 default_target: PLATFORM
 
+# Add feature projects here. Each project gets roles, warehouses, grants,
+# and a DCM database/schema for every environment listed.
 templating:
   defaults:
-    project_name: FITNESS
-    environments:
-      DEV:
-        warehouse_size: XSMALL
-      PROD:
-        warehouse_size: SMALL
+    projects:
+      FITNESS:
+        environments:
+          DEV:
+            warehouse_size: XSMALL
+          PROD:
+            warehouse_size: SMALL
+      # ANALYTICS:
+      #   environments:
+      #     DEV:
+      #       warehouse_size: XSMALL
+      #     PROD:
+      #       warehouse_size: MEDIUM

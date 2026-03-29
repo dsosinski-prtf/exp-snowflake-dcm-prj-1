@@ -1,0 +1,13 @@
+-- Template for developer accounts.
+-- Copy this file and replace placeholders with actual values.
+-- File naming convention: <username>.sql
+--
+-- USE ROLE PLATFORM_DEPLOY_ROLE;
+--
+-- CREATE USER IF NOT EXISTS <USERNAME>
+--     DEFAULT_ROLE      = '<PROJECT>_<ENV>_DEPLOY_ROLE'
+--     DEFAULT_WAREHOUSE = '<PROJECT>_<ENV>_DEPLOY_WH'
+--     TYPE = PERSON
+--     COMMENT = 'Developer - <Full Name>';
+--
+-- GRANT ROLE <PROJECT>_<ENV>_DEPLOY_ROLE TO USER <USERNAME>;

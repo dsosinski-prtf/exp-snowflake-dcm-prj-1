@@ -21,22 +21,69 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: snowflake
+          environment-file: environment.yml
+          auto-activate-base: false
+
       - uses: snowflakedb/snowflake-cli-action@v2.0
         with:
           cli-version: "3.16.0"
           default-config-file-path: "config.toml"
 
-      - name: Check Snowflake CLI version
-        run: snow --version
+      - name: Check versions
+        shell: bash -l {0}
+        run: |
+          snow --version
+          python --version
+          conda list
 
       - name: Print config.toml
         run: cat ~/.snowflake/config.toml
 
       - name: Verify connection
-        run: snow connection test 
+        run: snow connection test
 
       - name: Plan deployment
         run: snow dcm plan --target PLATFORM --connection myconnection
 
       - name: Deploy
         run: snow dcm deploy --target PLATFORM --connection myconnection
+
+      - name: Deploy platform users
+        run: |
+          for f in sources/users/platform/*.sql; do
+            [ -f "$f" ] || continue
+            echo "Running $f"
+            snow sql -f "$f" --connection myconnection
+          done
+
+      - name: Deploy deployer users
+        shell: bash -l {0}
+        run: |
+          python sources/users/deployers/generate_deployer_sql.py manifest.yml > /tmp/deployers.sql
+          echo "--- Generated SQL ---"
+          cat /tmp/deployers.sql
+          echo "--- Executing ---"
+          snow sql -f /tmp/deployers.sql --connection myconnection
+
+      - name: Deploy developer users
+        env:
+          DEFAULT_USER_PASSWORD: ${{ secrets.DEFAULT_USER_PASSWORD }}
+        run: |
+          for f in sources/users/developers/*.sql; do
+            [ -f "$f" ] || continue
+            echo "Running $f"
+            sed "s/__DEFAULT_USER_PASSWORD__/$DEFAULT_USER_PASSWORD/g" "$f" > /tmp/user.sql
+            snow sql -f /tmp/user.sql --connection myconnection
+          done
+
+      - name: Deploy ops users
+        run: |
+          for f in sources/users/ops/*.sql; do
+            [ -f "$f" ] || continue
+            echo "Running $f"
+            snow sql -f "$f" --connection myconnection
+          done

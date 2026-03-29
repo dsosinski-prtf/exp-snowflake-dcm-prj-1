@@ -1,0 +1,13 @@
+-- Template for ops/admin accounts.
+-- Copy this file and replace placeholders with actual values.
+-- File naming convention: <username>.sql
+--
+-- USE ROLE PLATFORM_DEPLOY_ROLE;
+--
+-- CREATE USER IF NOT EXISTS <USERNAME>
+--     DEFAULT_ROLE      = '<ROLE>'
+--     DEFAULT_WAREHOUSE = '<WAREHOUSE>'
+--     TYPE = SERVICE
+--     COMMENT = 'Ops - <description>';
+--
+-- GRANT ROLE <ROLE> TO USER <USERNAME>;

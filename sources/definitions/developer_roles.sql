@@ -1,0 +1,4 @@
+-- Developer roles for human users
+DEFINE ROLE DEVELOPER_ROLE;
+
+GRANT ROLE DEVELOPER_ROLE TO ROLE SYSADMIN;

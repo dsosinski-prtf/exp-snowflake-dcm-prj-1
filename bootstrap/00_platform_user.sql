@@ -1,7 +1,7 @@
 -- ============================================================
--- PLATFORM USER — Run ONCE as ACCOUNTADMIN
--- Creates a dedicated role + user for managing this repo's
--- objects so ACCOUNTADMIN is not used for day-to-day operations.
+-- PLATFORM ROLE & PRIVILEGES — Run ONCE as ACCOUNTADMIN
+-- Creates the role, privileges, and warehouse for platform admin.
+-- User creation is managed in sources/users/platform/
 -- ============================================================
 
 USE ROLE ACCOUNTADMIN;
@@ -21,16 +21,6 @@ GRANT CREATE ROLE      ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE WITH GRANT OPTION
 GRANT CREATE USER      ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE WITH GRANT OPTION;
 GRANT MANAGE GRANTS    ON ACCOUNT TO ROLE PLATFORM_DEPLOY_ROLE;
 
--- ---- User ----
-CREATE USER IF NOT EXISTS PLATFORM_DEPLOYER
-    DEFAULT_ROLE      = 'PLATFORM_DEPLOY_ROLE'
-    DEFAULT_WAREHOUSE = 'PLATFORM_DEPLOY_WH'
-    TYPE = SERVICE
-    COMMENT = 'Service account for platform-admin repo DCM deployments';
---  RSA_PUBLIC_KEY = '<paste contents of auth-key-pairs/platform-deployer/rsa_key.pub>';
-
-GRANT ROLE PLATFORM_DEPLOY_ROLE TO USER PLATFORM_DEPLOYER;
-
 -- ---- Warehouse for platform deploys ----
 CREATE WAREHOUSE IF NOT EXISTS PLATFORM_DEPLOY_WH
     WAREHOUSE_SIZE    = 'XSMALL'
@@ -39,8 +29,3 @@ CREATE WAREHOUSE IF NOT EXISTS PLATFORM_DEPLOY_WH
     INITIALLY_SUSPENDED = TRUE;
 
 GRANT USAGE ON WAREHOUSE PLATFORM_DEPLOY_WH TO ROLE PLATFORM_DEPLOY_ROLE;
-
--- ---- Ownership of platform DCM database ----
--- (Run after 01_pre_deploy.sql creates PLATFORM_DCM)
--- GRANT OWNERSHIP ON DATABASE PLATFORM_DCM TO ROLE PLATFORM_DEPLOY_ROLE COPY CURRENT GRANTS;
--- GRANT OWNERSHIP ON ALL SCHEMAS IN DATABASE PLATFORM_DCM TO ROLE PLATFORM_DEPLOY_ROLE COPY CURRENT GRANTS;

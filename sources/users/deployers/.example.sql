@@ -1,0 +1,13 @@
+-- Template for deployer service accounts.
+-- Copy this file and replace <PROJECT> and <ENV> with actual values.
+-- File naming convention: <project>_<env>_deployer.sql
+--
+-- USE ROLE PLATFORM_DEPLOY_ROLE;
+--
+-- CREATE USER IF NOT EXISTS <PROJECT>_<ENV>_DEPLOYER
+--     DEFAULT_ROLE      = '<PROJECT>_<ENV>_DEPLOY_ROLE'
+--     DEFAULT_WAREHOUSE = '<PROJECT>_<ENV>_DEPLOY_WH'
+--     TYPE = SERVICE
+--     COMMENT = 'Service account for <PROJECT> <ENV> deployments';
+--
+-- GRANT ROLE <PROJECT>_<ENV>_DEPLOY_ROLE TO USER <PROJECT>_<ENV>_DEPLOYER;
