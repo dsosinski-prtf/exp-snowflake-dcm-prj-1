@@ -54,7 +54,7 @@ jobs:
 
       - name: Deploy platform users
         run: |
-          for f in sources/users/platform/*.sql; do
+          for f in users/platform/*.sql; do
             [ -f "$f" ] || continue
             echo "Running $f"
             snow sql -f "$f" --connection myconnection
@@ -63,7 +63,7 @@ jobs:
       - name: Deploy deployer users
         shell: bash -l {0}
         run: |
-          python sources/users/deployers/generate_deployer_sql.py manifest.yml > /tmp/deployers.sql
+          python users/deployers/generate_deployer_sql.py manifest.yml > /tmp/deployers.sql
           echo "--- Generated SQL ---"
           cat /tmp/deployers.sql
           echo "--- Executing ---"
@@ -73,7 +73,7 @@ jobs:
         env:
           DEFAULT_USER_PASSWORD: ${{ secrets.DEFAULT_USER_PASSWORD }}
         run: |
-          for f in sources/users/developers/*.sql; do
+          for f in users/developers/*.sql; do
             [ -f "$f" ] || continue
             echo "Running $f"
             sed "s/__DEFAULT_USER_PASSWORD__/$DEFAULT_USER_PASSWORD/g" "$f" > /tmp/user.sql
@@ -82,7 +82,7 @@ jobs:
 
       - name: Deploy ops users
         run: |
-          for f in sources/users/ops/*.sql; do
+          for f in users/ops/*.sql; do
             [ -f "$f" ] || continue
             echo "Running $f"
             snow sql -f "$f" --connection myconnection
