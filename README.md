@@ -74,13 +74,13 @@ Configure a Snowflake CLI connection for the platform user in `~/.snowflake/conn
 
 ```toml
 [platform]
-account = "WCCVLVP-OZC26701"
+account = "<<account>>"
 user = "PLATFORM_DEPLOYER"
 role = "PLATFORM_DEPLOY_ROLE"
 warehouse = "PLATFORM_DEPLOY_WH"
 authenticator = "SNOWFLAKE_JWT"
-private_key_file = "/path/to/auth-key-pairs/platform-deployer/rsa_key.p8"
-```
+private_key_file = "<<path to private key filep 8"
+``` 
 
 All subsequent steps use `--connection platform` instead of ACCOUNTADMIN.
 
