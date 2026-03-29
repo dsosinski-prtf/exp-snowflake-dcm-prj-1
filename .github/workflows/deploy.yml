@@ -10,25 +10,29 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-      SNOWFLAKE_USER: "PLATFORM_DEPLOYER"
-      SNOWFLAKE_ROLE: "PLATFORM_DEPLOY_ROLE"
-      SNOWFLAKE_WAREHOUSE: "PLATFORM_DEPLOY_WH"
-      SNOWFLAKE_AUTHENTICATOR: "SNOWFLAKE_JWT"
-      SNOWFLAKE_PRIVATE_KEY_RAW: ${{ secrets.SNOWFLAKE_PLATFORM_DEPLOYER_PRIVATE_KEY }}
+      SNOWFLAKE_CONNECTIONS_PLATFORM_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_CONNECTIONS_PLATFORM_USER: "PLATFORM_DEPLOYER"
+      SNOWFLAKE_CONNECTIONS_PLATFORM_ROLE: "PLATFORM_DEPLOY_ROLE"
+      SNOWFLAKE_CONNECTIONS_PLATFORM_WAREHOUSE: "PLATFORM_DEPLOY_WH"
+      SNOWFLAKE_CONNECTIONS_PLATFORM_AUTHENTICATOR: "SNOWFLAKE_JWT"
+      SNOWFLAKE_CONNECTIONS_PLATFORM_PRIVATE_KEY_RAW: ${{ secrets.SNOWFLAKE_PLATFORM_DEPLOYER_PRIVATE_KEY }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Snowflake CLI
         uses: snowflakedb/snowflake-cli-action@v2.0
+        with:
+          default-config-file-path: "config.toml"
 
       - name: Verify connection
-        run: snow connection test --temporary-connection
+        run: snow connection test
 
       - name: Plan deployment
-        run: snow dcm plan --target PLATFORM --temporary-connection
+        run: snow dcm plan --target PLATFORM --connection platform
 
       - name: Deploy
-        run: snow dcm deploy --target PLATFORM --temporary-connection
+        run: snow dcm deploy --target PLATFORM --connection platform
