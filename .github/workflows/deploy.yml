@@ -14,6 +14,7 @@ jobs:
       SNOWFLAKE_USER: "PLATFORM_DEPLOYER"
       SNOWFLAKE_ROLE: "PLATFORM_DEPLOY_ROLE"
       SNOWFLAKE_WAREHOUSE: "PLATFORM_DEPLOY_WH"
+      SNOWFLAKE_AUTHENTICATOR: "SNOWFLAKE_JWT"
       SNOWFLAKE_PRIVATE_KEY_RAW: ${{ secrets.SNOWFLAKE_PLATFORM_DEPLOYER_PRIVATE_KEY }}
 
     steps:
@@ -24,10 +25,10 @@ jobs:
         uses: snowflakedb/snowflake-cli-action@v2.0
 
       - name: Verify connection
-        run: snow connection test
+        run: snow connection test --temporary-connection
 
       - name: Plan deployment
-        run: snow dcm plan --target PLATFORM
+        run: snow dcm plan --target PLATFORM --temporary-connection
 
       - name: Deploy
-        run: snow dcm deploy --target PLATFORM
+        run: snow dcm deploy --target PLATFORM --temporary-connection
